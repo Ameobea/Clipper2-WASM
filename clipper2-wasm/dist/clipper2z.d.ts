@@ -222,13 +222,12 @@ export interface MainModule {
   RectClipLinesPathD(_0: RectD, _1: PathD, _2: number): PathsD;
   MinkowskiSumD(_0: PathD, _1: PathD, _2: boolean, _3: number): PathsD;
   MinkowskiDiffD(_0: PathD, _1: PathD, _2: boolean, _3: number): PathsD;
-  BooleanOpD(_0: ClipType, _1: FillRule, _2: PathsD, _3: PathsD, _4: number): PathsD;
-  BooleanOpOutD(_0: ClipType, _1: FillRule, _2: PathsD, _3: PathsD, _4: PolyPathD, _5: number): void;
-  IntersectD(_0: PathsD, _1: PathsD, _2: FillRule, _3: number): PathsD;
-  UnionD(_0: PathsD, _1: PathsD, _2: FillRule, _3: number): PathsD;
-  UnionSelfD(_0: PathsD, _1: FillRule, _2: number): PathsD;
-  DifferenceD(_0: PathsD, _1: PathsD, _2: FillRule, _3: number): PathsD;
-  XorD(_0: PathsD, _1: PathsD, _2: FillRule, _3: number): PathsD;
+  // Auto-scaling boolean operations (no manual precision parameter needed)
+  UnionD(subjects: PathsD, clips: PathsD, fillRule: FillRule): PathsD;
+  UnionSelfD(subjects: PathsD, fillRule: FillRule): PathsD;
+  IntersectD(subjects: PathsD, clips: PathsD, fillRule: FillRule): PathsD;
+  DifferenceD(subjects: PathsD, clips: PathsD, fillRule: FillRule): PathsD;
+  XorD(subjects: PathsD, clips: PathsD, fillRule: FillRule): PathsD;
   TrimCollinearD(_0: PathD, _1: number, _2: boolean): PathD;
   TranslatePath64(_0: Path64, _1: bigint, _2: bigint): Path64;
   TranslatePaths64(_0: Paths64, _1: bigint, _2: bigint): Paths64;
@@ -243,7 +242,7 @@ export interface MainModule {
   EllipseD(_0: PointD, _1: number, _2: number, _3: number): PathD;
   TranslatePathD(_0: PathD, _1: number, _2: number): PathD;
   TranslatePathsD(_0: PathsD, _1: number, _2: number): PathsD;
-  InflatePathsD(_0: PathsD, _1: number, _2: JoinType, _3: EndType, _4: number, _5: number, _6: number): PathsD;
+  InflatePathsD(paths: PathsD, delta: number, joinType: JoinType, endType: EndType, miterLimit?: number, arcTolerance?: number): PathsD;
   SimplifyPathD(_0: PathD, _1: number, _2: boolean): PathD;
   SimplifyPathsD(_0: PathsD, _1: number, _2: boolean): PathsD;
   MakePath64(intArray: Array<number | bigint>): Path64;
