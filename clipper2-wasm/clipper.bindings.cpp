@@ -3,6 +3,7 @@
 #include "clipper2/clipper.offset.h"
 #include <emscripten/bind.h>
 #include <cmath>
+#include <algorithm>
 
 using namespace emscripten;
 using namespace Clipper2Lib;
@@ -238,6 +239,35 @@ PathsD XorDAutoScale(const PathsD& subjects, const PathsD& clips, FillRule fillR
     return Paths64ToPathsD(result64, invScale);
 }
 
+// Normalize a path's start point by rotating it so the vertex with the
+// most negative Y comes first (lowest point). Ties are broken by most
+// negative X (leftmost). This matches the convention Clipper2 uses
+// internally for orientation detection, and the extreme point is always
+// on the outer surface of the path by definition.
+static void NormalizePathStart(PathD& path) {
+    if (path.size() < 3) {
+        return;
+    }
+
+    size_t bestIdx = 0;
+    for (size_t i = 1; i < path.size(); ++i) {
+        if (path[i].y < path[bestIdx].y ||
+            (path[i].y == path[bestIdx].y && path[i].x < path[bestIdx].x)) {
+            bestIdx = i;
+        }
+    }
+
+    if (bestIdx != 0) {
+        std::rotate(path.begin(), path.begin() + bestIdx, path.end());
+    }
+}
+
+static void NormalizePathsStart(PathsD& paths) {
+    for (auto& path : paths) {
+        NormalizePathStart(path);
+    }
+}
+
 // Stored path entry for deferred scaling
 struct PathEntry {
     PathD path;
@@ -270,6 +300,9 @@ private:
     // Simplification epsilon: 0 = default (auto-scaled)
     double simplifyEpsilon_ = 0.0;
     std::vector<double> critical_t_values_;
+    // Start-point normalization: rotate each output path to start at
+    // the lowest (most negative Y) point, with leftmost as tiebreaker.
+    bool normalizeStart_ = false;
 
 public:
     ClipperOffsetD(double miterLimit = 2.0, double arcTolerance = 0.0)
@@ -324,7 +357,13 @@ public:
         errorCode_ = co.ErrorCode();
         critical_t_values_ = co.GetCriticalTValues();
 
-        return Paths64ToPathsD(result64, invScale);
+        PathsD result = Paths64ToPathsD(result64, invScale);
+
+        if (normalizeStart_) {
+            NormalizePathsStart(result);
+        }
+
+        return result;
     }
 
     double MiterLimit() const { return miterLimit_; }
@@ -358,6 +397,10 @@ public:
     void SetSimplifyEpsilon(double val) { simplifyEpsilon_ = val; }
     double SimplifyEpsilon() const { return simplifyEpsilon_; }
     std::vector<double> GetCriticalTValues() const { return critical_t_values_; }
+    // Start-point normalization: rotate each output path to start at
+    // the lowest (most negative Y) vertex, leftmost as tiebreaker.
+    void SetNormalizeStart(bool val) { normalizeStart_ = val; }
+    bool NormalizeStart() const { return normalizeStart_; }
 };
 
 ClipperOffsetD* CreateClipperOffsetD(double miterLimit, double arcTolerance) {
@@ -578,7 +621,9 @@ EMSCRIPTEN_BINDINGS(clipper_module) {
             .function("CriticalSegmentFraction", &ClipperOffsetD::CriticalSegmentFraction)
             .function("SetSimplifyEpsilon", &ClipperOffsetD::SetSimplifyEpsilon)
             .function("SimplifyEpsilon", &ClipperOffsetD::SimplifyEpsilon)
-            .function("GetCriticalTValues", &ClipperOffsetD::GetCriticalTValues);
+            .function("GetCriticalTValues", &ClipperOffsetD::GetCriticalTValues)
+            .function("SetNormalizeStart", &ClipperOffsetD::SetNormalizeStart)
+            .function("NormalizeStart", &ClipperOffsetD::NormalizeStart);
 
         function("CreateClipperOffsetD", &CreateClipperOffsetD, allow_raw_pointers());
 
