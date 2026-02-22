@@ -355,13 +355,33 @@ public:
         Paths64 result64;
         co.Execute(delta * scale, result64);
         errorCode_ = co.ErrorCode();
+
+        if (normalizeStart_) {
+            // Normalize (rotate) paths in int64 space BEFORE extracting
+            // critical t values, so that the t values are relative to the
+            // rotated start points rather than the original ones.
+            for (auto& p64 : result64) {
+                if (p64.size() < 3) {
+                    continue;
+                }
+                size_t bestIdx = 0;
+                for (size_t i = 1; i < p64.size(); ++i) {
+                    if (p64[i].y < p64[bestIdx].y ||
+                        (p64[i].y == p64[bestIdx].y && p64[i].x < p64[bestIdx].x)) {
+                        bestIdx = i;
+                    }
+                }
+                if (bestIdx != 0) {
+                    std::rotate(p64.begin(), p64.begin() + bestIdx, p64.end());
+                }
+            }
+            // Re-detect critical points on the normalized paths
+            co.DetectCriticalPoints(result64, std::abs(delta * scale));
+        }
+
         critical_t_values_ = co.GetCriticalTValues();
 
         PathsD result = Paths64ToPathsD(result64, invScale);
-
-        if (normalizeStart_) {
-            NormalizePathsStart(result);
-        }
 
         return result;
     }
