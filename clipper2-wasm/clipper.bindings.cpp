@@ -294,15 +294,8 @@ private:
     double joinAngleThreshold_ = 0.0;
     bool chebyshevSpacing_ = false;
     int errorCode_ = 0;
-    double criticalAngleThreshold_ = 0.3; // radians
-    // Segment fraction: 0 = default (0.15), 1 = disabled
-    double criticalSegmentFraction_ = 0.0;
     // Simplification epsilon: 0 = default (auto-scaled)
     double simplifyEpsilon_ = 0.0;
-    std::vector<double> critical_t_values_;
-    // Start-point normalization: rotate each output path to start at
-    // the lowest (most negative Y) point, with leftmost as tiebreaker.
-    bool normalizeStart_ = false;
 
 public:
     ClipperOffsetD(double miterLimit = 2.0, double arcTolerance = 0.0)
@@ -312,7 +305,6 @@ public:
         storedPaths_.clear();
         maxAbsCoord_ = 0.0;
         errorCode_ = 0;
-        critical_t_values_.clear();
     }
 
     void AddPath(const PathD& path, JoinType jt, EndType et) {
@@ -341,8 +333,6 @@ public:
         co.SetTeardropPinch(teardropPinch_);
         co.SetJoinAngleThreshold(joinAngleThreshold_);
         co.SetChebyshevSpacing(chebyshevSpacing_);
-        co.SetAngleThreshold(criticalAngleThreshold_);
-        co.SetCriticalSegmentFraction(criticalSegmentFraction_);
         // Scale simplify epsilon if provided (it's in input coordinate units)
         const double simplifyEpsScaled = (simplifyEpsilon_ > 0.0) ?
             (simplifyEpsilon_ * scale) : 0.0;
@@ -355,31 +345,6 @@ public:
         Paths64 result64;
         co.Execute(delta * scale, result64);
         errorCode_ = co.ErrorCode();
-
-        if (normalizeStart_) {
-            // Normalize (rotate) paths in int64 space BEFORE extracting
-            // critical t values, so that the t values are relative to the
-            // rotated start points rather than the original ones.
-            for (auto& p64 : result64) {
-                if (p64.size() < 3) {
-                    continue;
-                }
-                size_t bestIdx = 0;
-                for (size_t i = 1; i < p64.size(); ++i) {
-                    if (p64[i].y < p64[bestIdx].y ||
-                        (p64[i].y == p64[bestIdx].y && p64[i].x < p64[bestIdx].x)) {
-                        bestIdx = i;
-                    }
-                }
-                if (bestIdx != 0) {
-                    std::rotate(p64.begin(), p64.begin() + bestIdx, p64.end());
-                }
-            }
-            // Re-detect critical points on the normalized paths
-            co.DetectCriticalPoints(result64, std::abs(delta * scale));
-        }
-
-        critical_t_values_ = co.GetCriticalTValues();
 
         PathsD result = Paths64ToPathsD(result64, invScale);
 
@@ -408,19 +373,9 @@ public:
     void SetChebyshevSpacing(bool val) { chebyshevSpacing_ = val; }
     bool ChebyshevSpacing() const { return chebyshevSpacing_; }
     int ErrorCode() const { return errorCode_; }
-    void SetAngleThreshold(double val) { criticalAngleThreshold_ = val; } // radians
-    double AngleThreshold() const { return criticalAngleThreshold_; }
-    // Segment fraction: 0 = default (0.15), 1 = disabled
-    void SetCriticalSegmentFraction(double val) { criticalSegmentFraction_ = val; }
-    double CriticalSegmentFraction() const { return criticalSegmentFraction_; }
     // Simplification epsilon: 0 = default (auto-scaled based on delta)
     void SetSimplifyEpsilon(double val) { simplifyEpsilon_ = val; }
     double SimplifyEpsilon() const { return simplifyEpsilon_; }
-    std::vector<double> GetCriticalTValues() const { return critical_t_values_; }
-    // Start-point normalization: rotate each output path to start at
-    // the lowest (most negative Y) vertex, leftmost as tiebreaker.
-    void SetNormalizeStart(bool val) { normalizeStart_ = val; }
-    bool NormalizeStart() const { return normalizeStart_; }
 };
 
 ClipperOffsetD* CreateClipperOffsetD(double miterLimit, double arcTolerance) {
@@ -635,15 +590,8 @@ EMSCRIPTEN_BINDINGS(clipper_module) {
             .function("SetChebyshevSpacing", &ClipperOffsetD::SetChebyshevSpacing)
             .function("ChebyshevSpacing", &ClipperOffsetD::ChebyshevSpacing)
             .function("ErrorCode", &ClipperOffsetD::ErrorCode)
-            .function("SetAngleThreshold", &ClipperOffsetD::SetAngleThreshold)
-            .function("AngleThreshold", &ClipperOffsetD::AngleThreshold)
-            .function("SetCriticalSegmentFraction", &ClipperOffsetD::SetCriticalSegmentFraction)
-            .function("CriticalSegmentFraction", &ClipperOffsetD::CriticalSegmentFraction)
             .function("SetSimplifyEpsilon", &ClipperOffsetD::SetSimplifyEpsilon)
-            .function("SimplifyEpsilon", &ClipperOffsetD::SimplifyEpsilon)
-            .function("GetCriticalTValues", &ClipperOffsetD::GetCriticalTValues)
-            .function("SetNormalizeStart", &ClipperOffsetD::SetNormalizeStart)
-            .function("NormalizeStart", &ClipperOffsetD::NormalizeStart);
+            .function("SimplifyEpsilon", &ClipperOffsetD::SimplifyEpsilon);
 
         function("CreateClipperOffsetD", &CreateClipperOffsetD, allow_raw_pointers());
 
